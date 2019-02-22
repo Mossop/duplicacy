@@ -1838,7 +1838,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 				if _, found := newChunks[chunk]; found {
 					// The fossil is referenced so it can't be deleted.
 					if dryRun {
-						LOG_INFO("FOSSIL_RESURRECT", "Fossil %s would be resurrected: %v", chunk)
+						LOG_INFO("FOSSIL_RESURRECT", "Fossil %s would be resurrected", chunk)
 						continue
 					}
 
