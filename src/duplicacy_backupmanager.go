@@ -288,11 +288,20 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	var modifiedEntries []*Entry  // Files that has been modified or newly created
 	var preservedEntries []*Entry // Files unchanges
 
+	var unchangedFileCount int64 // Number of unchanged files in this backup
+	var unchangedFileSize int64  // Size of unchanged files in this backup
+	var changedFileCount int64   // Number of changed files in this backup
+	var changedFileSize int64    // Size of changed files in this backup
+	var newFileCount int64       // Number of new files in this backup
+	var newFileSize int64        // Size of new files in this backup
+	var removedFileCount int64   // Number of files removed since the last backup
+	var removedFileSize int64    // Size of files removed since the last backup
+
 	// If the quick mode is disable and there isn't an incomplete snapshot from last (failed) backup,
 	// we simply treat all files as if they were new, and break them into chunks.
 	// Otherwise, we need to find those that are new or recently modified
 
-	if (remoteSnapshot.Revision == 0 || !quickMode) && incompleteSnapshot == nil {
+	if remoteSnapshot.Revision == 0 && incompleteSnapshot == nil {
 		modifiedEntries = localSnapshot.Files
 		for _, entry := range modifiedEntries {
 			totalModifiedFileSize += entry.Size
@@ -317,13 +326,17 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 			} else if remote = remoteSnapshot.Files[j]; !remote.IsFile() {
 				j++
 			} else if local.Path == remote.Path {
-				if local.IsSameAs(remote) {
-					local.Hash = remote.Hash
+				local.Hash = remote.Hash
+				if quickMode && local.IsSameAs(remote) {
 					local.StartChunk = remote.StartChunk
 					local.StartOffset = remote.StartOffset
 					local.EndChunk = remote.EndChunk
 					local.EndOffset = remote.EndOffset
 					preservedEntries = append(preservedEntries, local)
+
+					unchangedFileCount++
+					unchangedFileSize += local.Size
+					LOG_TRACE("FILE_MATCH", "File %s (%d) likely unchanged since last backup", local.Path, local.Size)
 				} else {
 					totalModifiedFileSize += local.Size
 					modifiedEntries = append(modifiedEntries, local)
@@ -335,6 +348,9 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 				modifiedEntries = append(modifiedEntries, local)
 				i++
 			} else {
+				removedFileCount++
+				removedFileSize += remote.Size
+				LOG_TRACE("FILE_REMOVE", "File %s (%d) removed since last backup", remote.Path, remote.Size)
 				j++
 			}
 		}
@@ -540,6 +556,21 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 				// This function is called when a new file is needed
 				entry := fileReader.CurrentEntry
+
+				if len(entry.Hash) == 0 {
+					newFileCount++
+					newFileSize += fileSize
+					LOG_INFO("FILE_NEW", "File %s (%d) new since last backup", entry.Path, fileSize)
+				} else if entry.Hash != hash {
+					changedFileCount++
+					changedFileSize += fileSize
+					LOG_INFO("FILE_CHANGE", "File %s (%d) changed since last backup", entry.Path, fileSize)
+				} else {
+					unchangedFileCount++
+					unchangedFileSize += fileSize
+					LOG_TRACE("FILE_MATCH", "File %s (%d) unchanged since last backup", entry.Path, fileSize)
+				}
+
 				entry.Hash = hash
 				entry.Size = fileSize
 				uploadedEntries = append(uploadedEntries, entry)
@@ -627,12 +658,6 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		totalUploadedSnapshotChunkLength, totalUploadedSnapshotChunkBytes :=
 		manager.UploadSnapshot(chunkMaker, chunkUploader, top, localSnapshot, chunkCache)
 
-	if showStatistics && !RunInBackground {
-		for _, entry := range uploadedEntries {
-			LOG_INFO("UPLOAD_FILE", "Uploaded %s (%d)", entry.Path, entry.Size)
-		}
-	}
-
 	for _, dir := range skippedDirectories {
 		LOG_WARN("SKIP_DIRECTORY", "Subdirectory %s cannot be listed", dir)
 	}
@@ -654,10 +679,21 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		len(localSnapshot.LengthSequence)
 	if showStatistics {
 
-		LOG_INFO("BACKUP_STATS", "Files: %d total, %s bytes; %d new, %s bytes",
-			len(preservedEntries)+len(uploadedEntries),
-			PrettyNumber(preservedFileSize+uploadedFileSize),
-			len(uploadedEntries), PrettyNumber(uploadedFileSize))
+		LOG_INFO("BACKUP_STATS", "Files: %d total, %s bytes",
+			newFileCount+unchangedFileCount+changedFileCount,
+			PrettyNumber(newFileSize+unchangedFileSize+changedFileSize))
+
+		LOG_INFO("BACKUP_STATS", "New files: %d total, %s bytes",
+			newFileCount, PrettyNumber(newFileSize))
+
+		LOG_INFO("BACKUP_STATS", "Changed files: %d total, %s bytes",
+			changedFileCount, PrettyNumber(changedFileSize))
+
+		LOG_TRACE("BACKUP_STATS", "Unchanged files: %d total, %s bytes",
+			unchangedFileCount, PrettyNumber(unchangedFileSize))
+
+		LOG_TRACE("BACKUP_STATS", "Removed files: %d total, %s bytes",
+			removedFileCount, PrettyNumber(removedFileSize))
 
 		LOG_INFO("BACKUP_STATS", "File chunks: %d total, %s bytes; %d new, %s bytes, %s bytes uploaded",
 			len(localSnapshot.ChunkHashes), PrettyNumber(totalFileChunkLength),
