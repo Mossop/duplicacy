@@ -11,14 +11,15 @@ branches:
 
 go_import_path: github.com/gilbertchen/duplicacy
 
-script: go install ./duplicacy
+script: ci/build.sh
 
-before_deploy: cp ${GOPATH}/bin/duplicacy ${GOPATH}/bin/duplicacy-${TRAVIS_OS_NAME}
+before_deploy: ci/pre-deploy.sh
 deploy:
   provider: releases
   api_key:
     secure: vGWjG/vSJ5ESbnkFyQU4Gej35ajv2tiZyeNM306BonHoJzNpXy/dAlhO8kdOA9moiT1Rvv5vPX8hfdN3UPzukIYMmN7ZrW0gXnkXO5yPxJVjAFk1o1MrlmToIaJ5w1QYxBMJVKBcocY915ehR+HLz9jULP+aC0kV5P8Xb8M3qzEcoePA2E/pjwH3jxeluBBrkqcslK7AtRZQBFHzqkDYtMgeDGYsZ387Kc9HNlLYZzb0SjyUqdeSOcxhiw56WDYrKcni2mkAUn7bqagRyHV0+rRZMRKD6oeZhJQXmZiaV18HIIzuadjy7Yoec42VqhfIrWoQkmxkxkar28XLxgWbfnQkOeCQ/ZBBth4WdvYXc7B7amF3Ut4XIpK6os0LeB6dfLLckRjBrXYGdKkKf8PcHxh9PpO3V9cXDFRnkmBdiirrIlnnoYFYZtpHWa/oYICEEUE0L9Yrk4d4wK6R+btmuoM+HP4ylkUEGQxq3dTc0vwYJvQPvgYfBcTLRqotbHxyEvq3WkyNBS/NmGW3iDGX1GMKY65OZ6xjkU8FyOUh8drIiJmr8vIwIGx7hYG5/vQXZX1x+tWIOzmhH1KeSi/6hLpRcakxwGfiyPTGcv6ydGk8sNfDVlWtapyX2LCv7PRSzHX4WBb4Z6Qcu5Bdzgv+d70XZFU8n2CMiYfIYg86+lI=
-  file: "${GOPATH}/bin/duplicacy-${TRAVIS_OS_NAME}"
+  file_glob: true
+  file: "${GOPATH}/bin/duplicacy-${TRAVIS_OS_NAME}*"
   on:
     repo: Mossop/duplicacy
     tags: true
