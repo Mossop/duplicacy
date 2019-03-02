@@ -576,7 +576,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 				uploadedEntries = append(uploadedEntries, entry)
 
 				if !showStatistics || IsTracing() || RunInBackground {
-					LOG_INFO("PACK_END", "Packed %s (%d)", entry.Path, entry.Size)
+					LOG_TRACE("PACK_END", "Packed %s (%d)", entry.Path, entry.Size)
 				}
 
 				fileReader.NextFile()
