@@ -1,11 +1,20 @@
 UPSTREAM_REPO := github.com/gilbertchen/duplicacy
-UPLOADTAG := latest
+ifeq ("$(BUILDTAG)","")
+RELEASETAG := latest
+else
+RELEASETAG := $(BUILDTAG)
+endif
+RELEASEBUCKET := fractalbrew-builds
 
 GOCMD := go
-GOBUILD := $(GOCMD) build
+GOINSTALL := $(GOCMD) install
 GOGET := $(GOCMD) get
 GOTEST := $(GOCMD) test
 GOLIST := $(GOCMD) list
+GOCLEAN := $(GOCMD) clean
+
+GOHOSTOS := $(shell go env GOHOSTOS)
+GOHOSTARCH := $(shell go env GOHOSTARCH)
 
 GOSRC := $(shell cd $$(go env GOPATH) && pwd)/src
 GOBIN := $(shell cd $$(go env GOPATH) && pwd)/bin
@@ -23,8 +32,9 @@ endif
 TESTPKGS := $(shell find $(REPODIR) -type f -and -name "*_test.go" | xargs -n 1 dirname | sed -e s@^$(REPODIR)/@$(REPO)/@ | uniq)
 
 ALLSRCS := $(shell find $(REPODIR) -type f -and -name "*.go" -and ! -name "*_test.go" | sed -e s@^$(REPODIR)/@@)
+UPSTREAMSRCS = $(foreach s,$(ALLSRCS),$(UPSTREAM_REPODIR)/$(s))
 
-BUILDDEPS := $(shell $(GOLIST) -deps $(MAINPKG) | grep -v "$(REPO)" | grep -v "$(UPSTREAM_REPO)")
+BUILDDEPPKGS = $(shell $(GOLIST) -deps $(MAINPKG) | grep -v "$(REPO)" | grep -v "$(UPSTREAM_REPO)")
 
 BINARY := $(shell basename $(MAINPKG))$(shell go env GOEXE)
 
@@ -32,6 +42,8 @@ GITREVISION := $(shell git rev-parse --short=12 HEAD)
 ifneq ("$(shell git status --porcelain)","")
 GITSTATUS := -dirty
 endif
+
+all: build
 
 define logvar
   @echo "$(1) = '$($(1))'"
@@ -56,34 +68,29 @@ echo-var-%:
 	$(call logvar,$*)
 
 
-all: build
+build: $(GOBIN)/$(BINARY)
 
-upload: notdirty build
-	git push --delete origin $(UPLOADTAG)
-	git tag -f $(UPLOADTAG)
-	git push origin master --tags
-
-build: setup build-deps $(GOBIN)/$(BINARY)
-
-$(GOBIN)/$(BINARY): setup $(ALLSRCS)
+$(GOBIN)/$(BINARY): $(UPSTREAMSRCS) $(ALLSRCS)
 	@echo "Building $(MAINPKG)..."
-	@$(GOGET) -ldflags "-X main.GitCommit=$(GITREVISION)$(GITSTATUS)" $(MAINPKG)
+	@$(GOINSTALL) -v -ldflags "-X main.GitCommit=$(GITREVISION)$(GITSTATUS)" $(MAINPKG)
 
-test: setup
+test: $(UPSTREAMSRCS)
 	@echo "Running tests..."
 	@$(GOTEST) $(TESTPKGS)
 
-build-deps: setup
+build-deps: $(UPSTREAMSRCS)
+	@$(GOGET) -d $(MAINPKG)
 	@echo "Building dependencies..."
-	@$(GOGET) $(BUILDDEPS)
+	@$(GOGET) -v $(BUILDDEPPKGS)
 
-update-deps: setup
-	@echo "Downloading updated dependencies..."
+update-deps: $(UPSTREAMSRCS)
 	@$(GOGET) -u -d $(MAINPKG)
+	@echo "Updating dependencies..."
+	@$(GOGET) -v $(BUILDDEPPKGS)
 
 clean:
-	@echo "Deleting binary..."
-	@rm -f $(GOBIN)/$(BINARY)
+	@echo "Cleaning binaries and packages..."
+	@$(GOCLEAN) -i -r -cache -testcache $(MAINPKG) || true
 	@echo "Deleting upstream..."
 	@rm -rf $(UPSTREAM_REPODIR)
 
@@ -93,17 +100,20 @@ ifneq ("$(GITSTATUS)","")
 	@exit 1
 endif
 
-setup: link-upstream
+
+start-release: notdirty
+	git push --delete origin $(RELEASETAG)
+	git tag -f $(RELEASETAG)
+	git push origin master --tags
+
+upload-release: notdirty
+	@b2 upload-file --noProgress $(RELEASEBUCKET) $(GOBIN)/$(BINARY) $(shell basename $(MAINPKG))/$(RELEASETAG)/$(GOHOSTOS)/$(BINARY)
 
 
-UPSTREAMSRCS = $(foreach s,$(ALLSRCS),$(UPSTREAM_REPODIR)/$(s))
-
-link-upstream: $(UPSTREAMSRCS)
-
-$(UPSTREAM_REPODIR)/%:
+$(UPSTREAM_REPODIR)/%: $(REPODIR)/%
 	@mkdir -p $(shell dirname $@)
-ifeq ($(go env GOHOSTOS),windows)
-	@ln -s $(subst $(UPSTREAM_REPODIR),$(REPODIR) $@
+ifeq ($(GOHOSTOS),windows)
+	@cp $< $@
 else
-	@cp $(subst $(UPSTREAM_REPODIR),$(REPODIR),$@) $@
+	@ln -s $< $@
 endif

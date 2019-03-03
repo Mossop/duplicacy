@@ -3,11 +3,15 @@ language: go
 os:
 - linux
 - osx
-- windows
 
 branches:
   except:
   - upstream
+
+env:
+  global:
+  - secure: IbhHyhFcA9Le+rde8Yo6Iag62fUtNx1QvMmOBKhjNwU/Fp8aefKxC/l1kILqg+AAAe13D9HQQYnt5mF9KI8u2oIXwoiGjg33K+qypB5vceSLrY6kiK8T7WPxrjTry/RJJHYDQ62yUH+2OVxfLiVQZmQA2Es4y4xLEJ9NZs5/3bNIccsP+FQwA/i/fLZI0oxWxi3++wWVFJxq507D4p0G9khEWiFjQ/1+SIL6SnMFA0HVg8RU6L8Sm0quu1kVfXoxizNMq77MRZieJgHCwbdaByvfIFkjwsjTAPLAhMYQ/bDVFQ3UEWuasdHjnol/dk2ZrnwWRkoWZylSp3W+J61Bbo1Pm9+DcvA2Ucbhy4IE0tVmEn9TSykU24Md72wsAe6/9oZMU5a7KpX3q1TxpLjmQVV+UGeT7ItZDMTdOfQ346rTJ4lYwMR/fPMMgaXnfjprdtmXZQia7Kesfa+9WjOYVC7glQdXr5zytlK3nltWfIx8Y99zl0wFuMGS3EUamiHuuQ9MsFwTVTjq47Fm2qkqjEYuFhT7oDkaFEAGQGresu+ShBkv2D3UcjbhT3n4eHScaJP4P14x5HrNZ/8/rvpKxlo9AVus/ecMxrJqu6VXSWy1W9WeOmbxxZFIVm2TbIg3750cZL/X42EUAiDUfTocziD43jWD/BifnQZ4ORklmHw=
+  - secure: xg+m01QjUPCOPQd/nCXlG5pXSJE6d8HreQAVyFiyH6zhQq0acewCJh6y3/c875v4Azjkfz7xrgKp3fDUgF/L0a9BOAoRCBI5MeH9bZDHfLGXvB3kJovWZtzUZ9+xzLpIwLpGDhYdJ3w5LiwgcYM1xYIiqAJzKkdEAF/DhJNvQgR5Ktxxr33VMgGlo7doUvr7FUa2xtuNnVtGch/s2uwaADpSPSIB5zMG890nTMVshBAgy2FhZi1z6uppSGrw+a0zrQU2ggJ3b6FLDXSb/L0tD7+nStnVWgSspb1q+rBiHwm8IejGaCQMHdUlfneoUfX/5wqtDdoHb6YwjhsHXYvqnP5n8N8tbzAv0sMj4w8EFEL1C/VLqf+jNznoyDoQSphyLaZfdAHdQwBJGrFxzkkW3AaQw3l9VLGUVFCcaBSJM2QtFfDwNPMwfMRbTbZSDAPUdGLw2lJvI82hORR2QH3tBRFCevj//a6DDZlx4EM9uDwC/Gi11LyajdqGunomCWSa6vlQMysoK3p4PFgR1rd3UpP1MTGy56ewNtwJiYMtanKjZLDQHPaATa6mUc7ByFC4xhFPrqNfRsFktqXHjKUeOQj4wGj0vPasp+ZNaOSdWJoj2YogvUJibLTTYOlUY61qCb/jfIzcjjmz1gEkNeH33eNvX+xQ3PlHbjNGdB6noJc=
 
 before_install:
 - if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then choco install make; fi
@@ -20,15 +24,15 @@ script:
 - make build
 
 before_deploy:
-- export BINARY=$(go env GOPATH)/bin/duplicacy$(go env GOEXE)
-- export OSBINARY=$(go env GOPATH)/bin/duplicacy-$(go env GOHOSTOS)$(go env GOEXE)
-- cp $BINARY $OSBINARY
+- if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then choco install python3; export PATH=${PATH}:/c/Python37/Scripts; pip3.exe install b2; fi
+- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo pip install b2; fi
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install b2-tools; fi
+- b2 version
+- b2 authorize-account $B2_KEY_ID $B2_APPLICATION_KEY
+- make upload-release BUILDTAG=$TRAVIS_BRANCH
 
 deploy:
-  provider: releases
-  api_key:
-    secure: vGWjG/vSJ5ESbnkFyQU4Gej35ajv2tiZyeNM306BonHoJzNpXy/dAlhO8kdOA9moiT1Rvv5vPX8hfdN3UPzukIYMmN7ZrW0gXnkXO5yPxJVjAFk1o1MrlmToIaJ5w1QYxBMJVKBcocY915ehR+HLz9jULP+aC0kV5P8Xb8M3qzEcoePA2E/pjwH3jxeluBBrkqcslK7AtRZQBFHzqkDYtMgeDGYsZ387Kc9HNlLYZzb0SjyUqdeSOcxhiw56WDYrKcni2mkAUn7bqagRyHV0+rRZMRKD6oeZhJQXmZiaV18HIIzuadjy7Yoec42VqhfIrWoQkmxkxkar28XLxgWbfnQkOeCQ/ZBBth4WdvYXc7B7amF3Ut4XIpK6os0LeB6dfLLckRjBrXYGdKkKf8PcHxh9PpO3V9cXDFRnkmBdiirrIlnnoYFYZtpHWa/oYICEEUE0L9Yrk4d4wK6R+btmuoM+HP4ylkUEGQxq3dTc0vwYJvQPvgYfBcTLRqotbHxyEvq3WkyNBS/NmGW3iDGX1GMKY65OZ6xjkU8FyOUh8drIiJmr8vIwIGx7hYG5/vQXZX1x+tWIOzmhH1KeSi/6hLpRcakxwGfiyPTGcv6ydGk8sNfDVlWtapyX2LCv7PRSzHX4WBb4Z6Qcu5Bdzgv+d70XZFU8n2CMiYfIYg86+lI=
-  file: "${OSBINARY}"
+  provider: script
+  script: make upload-release BUILDTAG=$TRAVIS_BRANCH
   on:
     repo: Mossop/duplicacy
-    tags: true
