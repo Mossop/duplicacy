@@ -36,3 +36,4 @@ deploy:
   script: make upload-release BUILDTAG=$TRAVIS_BRANCH
   on:
     repo: Mossop/duplicacy
+    all_branches: true
