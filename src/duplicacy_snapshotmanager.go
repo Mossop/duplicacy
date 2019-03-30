@@ -839,9 +839,12 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	}
 	LOG_INFO("SNAPSHOT_CHECK", "Total chunk size is %s in %d chunks", PrettyNumber(totalChunkSize), len(chunkSizeMap))
 
+	revisionIndex := 0
 	for snapshotID = range snapshotMap {
 
 		for _, snapshot := range snapshotMap[snapshotID] {
+
+			revisionIndex++
 
 			if checkFiles {
 				manager.DownloadSnapshotContents(snapshot, nil, false)
@@ -909,12 +912,12 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 			}
 
 			if missingChunks > 0 {
-				LOG_WARN("SNAPSHOT_CHECK", "Some chunks referenced by snapshot %s at revision %d are missing",
-					snapshotID, snapshot.Revision)
+				LOG_WARN("SNAPSHOT_CHECK", "Some chunks referenced by snapshot %s at revision %d are missing (%d/%d)",
+					snapshotID, snapshot.Revision, revisionIndex, totalRevisions)
 				totalMissingChunks += missingChunks
 			} else {
-				LOG_INFO("SNAPSHOT_CHECK", "All chunks referenced by snapshot %s at revision %d exist",
-					snapshotID, snapshot.Revision)
+				LOG_INFO("SNAPSHOT_CHECK", "All chunks referenced by snapshot %s at revision %d exist (%d/%d)",
+					snapshotID, snapshot.Revision, revisionIndex, totalRevisions)
 			}
 		}
 
