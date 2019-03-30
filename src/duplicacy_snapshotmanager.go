@@ -1136,11 +1136,12 @@ func (manager *SnapshotManager) VerifySnapshot(snapshot *Snapshot) bool {
 
 	sort.Sort(ByChunk(files))
 	corruptedFiles := 0
-	for _, file := range files {
+	count := len(files)
+	for idx, file := range files {
 		if !manager.RetrieveFile(snapshot, file, func([]byte) {}) {
 			corruptedFiles++
 		}
-		LOG_TRACE("SNAPSHOT_VERIFY", "%s", file.Path)
+		LOG_TRACE("SNAPSHOT_VERIFY", "%s (%d/%d)", file.Path, idx+1, count)
 	}
 
 	if corruptedFiles > 0 {
